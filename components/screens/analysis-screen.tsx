@@ -120,8 +120,11 @@ export function AnalysisScreen() {
         if (!response.ok) {
           const body = (await response.json().catch(() => null)) as {
             error?: string;
+            detail?: string;
           } | null;
-          throw new Error(body?.error || "Unable to analyse this incident.");
+          throw new Error(
+            body?.detail || body?.error || "Unable to analyse this incident.",
+          );
         }
 
         const nextReport = (await response.json()) as AnalysisReport;

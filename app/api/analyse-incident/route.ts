@@ -72,7 +72,19 @@ export async function POST(request: Request) {
     });
 
     if (!response.ok) {
-      throw new Error(`Lyzr request failed with ${response.status}`);
+      const providerError = (await response.json().catch(() => null)) as
+        | {
+            detail?: string;
+            message?: string;
+            error?: string;
+          }
+        | null;
+      const detail =
+        providerError?.detail ||
+        providerError?.message ||
+        providerError?.error ||
+        `Lyzr request failed with ${response.status}`;
+      throw new Error(detail);
     }
 
     const providerPayload = (await response.json()) as unknown;
@@ -101,7 +113,10 @@ export async function POST(request: Request) {
         error: "Unable to analyse the incident right now.",
         detail: error instanceof Error ? error.message : "Unknown provider error",
       },
-      { status: 502 },
+      {
+        status:
+          error instanceof Error && /credits exhausted/i.test(error.message) ? 402 : 502,
+      },
     );
   }
 }
