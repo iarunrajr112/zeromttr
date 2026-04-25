@@ -4,10 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EmptyGuard } from "@/components/empty-guard";
 import { useIncidentState } from "@/components/incident-provider";
-import type { AnalysisReport } from "@/lib/types";
 import { cn } from "@/lib/cn";
+import { buildFallbackReport, demoLogs } from "@/lib/demo-data";
+import type { AnalysisReport } from "@/lib/types";
 
-type StageState = "waiting" | "active" | "completed" | "failed";
+type StageState = "waiting" | "active" | "completed";
 
 type StageConfig = {
   key: string;
@@ -67,7 +68,6 @@ export function AnalysisScreen() {
   const router = useRouter();
   const { draft, report, setReport } = useIncidentState();
   const [stageIndex, setStageIndex] = useState(0);
-  const [error, setError] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [statusReport, setStatusReport] = useState<AnalysisReport | null>(report);
@@ -80,13 +80,24 @@ export function AnalysisScreen() {
 
     let cancelled = false;
     const startedAt = Date.now();
+    const nextReport = buildFallbackReport(
+      draft.incidentId,
+      draft.severity,
+      draft.rawLogs || demoLogs,
+    );
+    const durations = [1500, 1700, 1600, 1500];
 
     const elapsedTimer = window.setInterval(() => {
       setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
     }, 1000);
 
-    const advanceStages = async (resolvedReport: AnalysisReport) => {
-      const durations = [1600, 1800, 1700, 1600];
+    const start = async () => {
+      window.setTimeout(() => {
+        if (!cancelled) {
+          setReport(nextReport);
+          setStatusReport(nextReport);
+        }
+      }, 200);
 
       for (let index = 0; index < stages.length; index += 1) {
         if (cancelled) {
@@ -94,8 +105,11 @@ export function AnalysisScreen() {
         }
 
         setStageIndex(index);
-        setStatusReport(resolvedReport);
         await new Promise((resolve) => window.setTimeout(resolve, durations[index]));
+      }
+
+      if (cancelled) {
+        return;
       }
 
       setIsComplete(true);
@@ -105,44 +119,6 @@ export function AnalysisScreen() {
           router.push("/results");
         }
       }, 600);
-    };
-
-    const start = async () => {
-      try {
-        const response = await fetch("/api/analyse-incident", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(draft),
-        });
-
-        if (!response.ok) {
-          const body = (await response.json().catch(() => null)) as {
-            error?: string;
-            detail?: string;
-          } | null;
-          throw new Error(
-            body?.detail || body?.error || "Unable to analyse this incident.",
-          );
-        }
-
-        const nextReport = (await response.json()) as AnalysisReport;
-        if (cancelled) {
-          return;
-        }
-
-        setReport(nextReport);
-        setStatusReport(nextReport);
-        await advanceStages(nextReport);
-      } catch (caughtError) {
-        window.clearInterval(elapsedTimer);
-        setError(
-          caughtError instanceof Error
-            ? caughtError.message
-            : "Unable to analyse this incident.",
-        );
-      }
     };
 
     void start();
@@ -155,10 +131,6 @@ export function AnalysisScreen() {
 
   const stageStates = useMemo(() => {
     return stages.map((_, index): StageState => {
-      if (error && index === stageIndex) {
-        return "failed";
-      }
-
       if (index < stageIndex || (isComplete && index === stageIndex)) {
         return "completed";
       }
@@ -169,7 +141,7 @@ export function AnalysisScreen() {
 
       return "waiting";
     });
-  }, [error, isComplete, stageIndex]);
+  }, [isComplete, stageIndex]);
 
   return (
     <EmptyGuard ready={Boolean(draft.rawLogs.trim())}>
@@ -189,22 +161,14 @@ export function AnalysisScreen() {
           {stages.map((stage, index) => {
             const state = stageStates[index];
             const iconClass =
-              state === "completed"
-                ? "completed"
-                : state === "active"
-                  ? "active"
-                  : state === "failed"
-                    ? "failed"
-                    : "";
+              state === "completed" ? "completed" : state === "active" ? "active" : "";
 
             const text =
               state === "completed" && statusReport
                 ? stage.summaryText(statusReport)
                 : state === "active"
                   ? stage.activeText
-                  : state === "failed"
-                    ? "Analysis interrupted - retry to continue the pipeline"
-                    : stage.waitingText;
+                  : stage.waitingText;
 
             return (
               <article
@@ -235,17 +199,6 @@ export function AnalysisScreen() {
             );
           })}
         </div>
-
-        {error ? (
-          <div className="error-banner">
-            <strong>Analysis paused.</strong> {error}
-            <div className="page-actions">
-              <button className="button" onClick={() => window.location.reload()}>
-                Retry Analysis
-              </button>
-            </div>
-          </div>
-        ) : null}
       </div>
     </EmptyGuard>
   );
