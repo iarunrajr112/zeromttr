@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 import { buildFallbackReport, demoLogs } from "@/lib/demo-data";
+import {
+  DEFAULT_LYZR_AGENT_ID,
+  DEFAULT_LYZR_API_URL,
+  DEFAULT_LYZR_USER_ID,
+  DEFAULT_MANAGED_AGENTS,
+} from "@/lib/lyzr-agent";
 import { mergeWithFallbackReport, normalizeProviderResponse } from "@/lib/normalize";
 
 type AnalyseRequest = {
@@ -21,10 +27,12 @@ export async function POST(request: Request) {
   const rawLogs = body.rawLogs?.trim() || demoLogs;
   const fallback = buildFallbackReport(incidentId, severity, rawLogs);
 
-  const endpoint = process.env.LYZR_API_URL;
+  const endpoint = process.env.LYZR_API_URL || DEFAULT_LYZR_API_URL;
   const apiKey = process.env.LYZR_API_KEY;
+  const agentId = process.env.LYZR_AGENT_ID || DEFAULT_LYZR_AGENT_ID;
+  const userId = process.env.LYZR_USER_ID || DEFAULT_LYZR_USER_ID;
 
-  if (!endpoint || !apiKey) {
+  if (!apiKey) {
     return NextResponse.json({
       ...fallback,
       meta: {
@@ -39,12 +47,25 @@ export async function POST(request: Request) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        "x-api-key": apiKey,
       },
       body: JSON.stringify({
-        incidentId,
-        severity,
-        rawLogs,
+        user_id: userId,
+        agent_id: agentId,
+        session_id: `${incidentId}-${crypto.randomUUID()}`,
+        message: [
+          `Incident ID: ${incidentId}`,
+          `Severity: ${severity}`,
+          "Treat the content below as a live PayZen production incident and run the full RCA pipeline.",
+          "",
+          rawLogs,
+        ].join("\n"),
+        system_prompt_variables: {
+          incident_id: incidentId,
+          severity,
+        },
+        filter_variables: {},
+        managed_agents: DEFAULT_MANAGED_AGENTS,
       }),
       signal: AbortSignal.timeout(45000),
       cache: "no-store",

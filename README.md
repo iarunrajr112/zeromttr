@@ -20,8 +20,10 @@ PATH="/Users/arun/Library/pnpm:$PATH" pnpm install
 2. Create `.env.local` with the values you have:
 
 ```bash
-LYZR_API_URL=
+LYZR_API_URL=https://agent-prod.studio.lyzr.ai/v3/inference/chat/
 LYZR_API_KEY=
+LYZR_AGENT_ID=69ec79fa53a36f9a896b7a91
+LYZR_USER_ID=zeromttr-demo-user
 DEMO_FALLBACK_ENABLED=true
 NEXT_PUBLIC_APP_ENV=Hackathon demo
 ```
@@ -44,16 +46,22 @@ The frontend posts this payload to the local API route:
 }
 ```
 
-The app expects the Lyzr endpoint to return either:
+The server-side Lyzr call uses the official Studio chat endpoint with:
+
+- header: `x-api-key`
+- body fields: `user_id`, `agent_id`, `session_id`, `message`
+- manager-agent context: `managed_agents`
+
+The app expects the Lyzr response to return either:
 
 - the canonical aggregated ZeroMTTR response shape, or
-- a close variant containing `incident`, `patternMatches`, `rca`, `runbook`, and optional `timeline`
+- a close variant containing `incident`, `qdrant_matches` or `patternMatches`, `root_cause_analysis` or `rca`, `resolution` or `runbook`, and optional `timeline`
 
-The server route normalizes partial responses and merges missing fields with the seeded demo payload so the UI remains presentation-ready.
+The server route also handles manager-agent text responses by extracting JSON from plain text or fenced code blocks, then merges missing fields with the seeded demo payload so the UI remains presentation-ready.
 
 ## Demo Mode
 
-- If `LYZR_API_URL` or `LYZR_API_KEY` is missing, the app returns the seeded `INC-LIVE-001` report.
+- If `LYZR_API_KEY` is missing, the app returns the seeded `INC-LIVE-001` report.
 - If the live provider fails and `DEMO_FALLBACK_ENABLED=true`, the app falls back to the seeded report and marks the response as fallback-backed.
 - Slack sending is intentionally not implemented in v1; the UI only renders and copies the Slack-ready update.
 
@@ -65,3 +73,7 @@ The server route normalizes partial responses and merges missing fields with the
 4. Deploy.
 
 Use the server-side API route only for Lyzr calls so the API key never reaches the browser.
+
+## Security Note
+
+Keep the Lyzr API key only in `.env.local` or your Vercel environment settings. Do not commit the real key into the repository.

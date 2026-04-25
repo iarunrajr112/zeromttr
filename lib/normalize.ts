@@ -11,6 +11,12 @@ function pickArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
+function pickObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 function normalizeMatch(match: Record<string, unknown>): PatternMatch {
   return {
     incidentId: String(match.incident_id ?? match.incidentId ?? "INC-000"),
@@ -71,37 +77,76 @@ function normalizeTimeline(rawLogs: string, payloadTimeline: unknown): TimelineE
   return derived.length > 0 ? derived : demoTimeline();
 }
 
+function extractJsonCandidate(text: string) {
+  const fencedMatch = text.match(/```json\s*([\s\S]*?)```/i) ?? text.match(/```([\s\S]*?)```/);
+  if (fencedMatch?.[1]) {
+    return fencedMatch[1].trim();
+  }
+
+  const firstBrace = text.indexOf("{");
+  const lastBrace = text.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    return text.slice(firstBrace, lastBrace + 1);
+  }
+
+  return text.trim();
+}
+
+function unwrapProviderPayload(payload: unknown): Record<string, unknown> {
+  const root = pickObject(payload);
+  const responseValue = root.response ?? root.agent_response;
+
+  if (typeof responseValue === "string") {
+    const candidate = extractJsonCandidate(responseValue);
+    try {
+      return pickObject(JSON.parse(candidate));
+    } catch {
+      return {
+        response: responseValue,
+      };
+    }
+  }
+
+  if (responseValue && typeof responseValue === "object") {
+    return pickObject(responseValue);
+  }
+
+  return root;
+}
+
 export function normalizeProviderResponse(
   payload: unknown,
   input: NormalizeInput,
 ): Partial<AnalysisReport> {
-  const response = (payload ?? {}) as Record<string, unknown>;
-  const incident = (response.incident ?? response.incident_object ?? {}) as Record<
-    string,
-    unknown
-  >;
+  const response = unwrapProviderPayload(payload);
+  const incident = pickObject(
+    response.incident ?? response.incident_object,
+  );
+  const qdrantMatches = pickObject(
+    response.qdrant_matches ?? response.qdrantMatches,
+  );
   const patternMatches = (response.patternMatches ??
     response.pattern_match ??
     response.patternMatchesAgentOutput ??
-    {}) as Record<string, unknown>;
-  const rca = (response.rca ?? response.root_cause_analysis ?? {}) as Record<
-    string,
-    unknown
-  >;
-  const runbook =
-    (response.runbook ?? response.runbookAgentOutput ?? {}) as Record<string, unknown>;
-  const slackMessage = (runbook.slackMessage ??
+    qdrantMatches.all_matches ??
+    qdrantMatches) as Record<string, unknown>;
+  const rca = pickObject(response.rca ?? response.root_cause_analysis);
+  const resolution = pickObject(response.resolution);
+  const runbook = pickObject(
+    response.runbook ?? response.runbookAgentOutput ?? resolution,
+  );
+  const topMatch = pickObject(qdrantMatches.top_match ?? qdrantMatches.topMatch);
+  const slackMessage = pickObject(runbook.slackMessage ??
     runbook.slack_message ??
     response.slack_message ??
-    {}) as Record<string, unknown>;
-  const blastRadius = ((rca.blast_radius ?? rca.blastRadius ?? {}) as Record<
-    string,
-    unknown
-  >);
+    resolution.slack_message);
+  const blastRadius = pickObject(rca.blast_radius ?? rca.blastRadius);
 
   return {
     incident: {
-      incidentId: String(incident.incident_id ?? incident.incidentId ?? input.incidentId),
+      incidentId: String(
+        incident.incident_id ?? incident.incidentId ?? incident.id ?? input.incidentId,
+      ),
       severity: String(incident.severity ?? input.severity) as AnalysisReport["incident"]["severity"],
       startTime: String(incident.start_time ?? incident.startTime ?? ""),
       primaryError: String(incident.primary_error ?? incident.primaryError ?? ""),
@@ -120,14 +165,17 @@ export function normalizeProviderResponse(
     },
     patternMatches: {
       matches: pickArray<Record<string, unknown>>(
-        patternMatches.matches ?? response.matches,
+        patternMatches.matches ?? response.matches ?? qdrantMatches.all_matches,
       ).map(normalizeMatch),
       topMatchConfidence: String(
         patternMatches.top_match_confidence ??
           patternMatches.topMatchConfidence ??
+          qdrantMatches.top_match_confidence ??
           "medium",
       ) as AnalysisReport["patternMatches"]["topMatchConfidence"],
-      recommendation: String(patternMatches.recommendation ?? ""),
+      recommendation: String(
+        patternMatches.recommendation ?? qdrantMatches.recommendation ?? "",
+      ),
     },
     rca: {
       rootCause: String(rca.root_cause ?? rca.rootCause ?? ""),
@@ -156,13 +204,17 @@ export function normalizeProviderResponse(
         ),
       },
       matchedPastIncident: String(
-        rca.matched_past_incident ?? rca.matchedPastIncident ?? "",
+        rca.matched_past_incident ??
+          rca.matchedPastIncident ??
+          topMatch.incident_id ??
+          topMatch.incidentId ??
+          "",
       ),
     },
     runbook: {
-      steps: pickArray<Record<string, unknown>>(runbook.runbook ?? runbook.steps).map(
-        normalizeRunbookStep,
-      ),
+      steps: pickArray<Record<string, unknown>>(
+        runbook.runbook ?? runbook.steps,
+      ).map(normalizeRunbookStep),
       slackMessage: {
         header: String(slackMessage.header ?? ""),
         body: String(slackMessage.body ?? ""),
