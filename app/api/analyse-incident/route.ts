@@ -31,13 +31,17 @@ export async function POST(request: Request) {
   const apiKey = process.env.LYZR_API_KEY;
   const agentId = process.env.LYZR_AGENT_ID || DEFAULT_LYZR_AGENT_ID;
   const userId = process.env.LYZR_USER_ID || DEFAULT_LYZR_USER_ID;
+  const demoMode = isFallbackEnabled();
 
-  if (!apiKey) {
+  if (demoMode || !apiKey) {
     return NextResponse.json({
       ...fallback,
       meta: {
         ...fallback.meta,
         usedFallback: true,
+        providerError: demoMode
+          ? "Demo mode enabled - returning seeded ZeroMTTR RCA output."
+          : fallback.meta.providerError,
       },
     });
   }
