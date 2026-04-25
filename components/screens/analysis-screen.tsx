@@ -66,11 +66,11 @@ const stages: StageConfig[] = [
 
 export function AnalysisScreen() {
   const router = useRouter();
-  const { draft, report, setReport } = useIncidentState();
+  const { draft, setReport } = useIncidentState();
   const [stageIndex, setStageIndex] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
-  const [statusReport, setStatusReport] = useState<AnalysisReport | null>(report);
+  const [statusReport, setStatusReport] = useState<AnalysisReport | null>(null);
 
   useEffect(() => {
     if (!draft.rawLogs.trim()) {
@@ -92,12 +92,7 @@ export function AnalysisScreen() {
     }, 1000);
 
     const start = async () => {
-      window.setTimeout(() => {
-        if (!cancelled) {
-          setReport(nextReport);
-          setStatusReport(nextReport);
-        }
-      }, 200);
+      setStatusReport(nextReport);
 
       for (let index = 0; index < stages.length; index += 1) {
         if (cancelled) {
@@ -116,6 +111,7 @@ export function AnalysisScreen() {
       window.clearInterval(elapsedTimer);
       window.setTimeout(() => {
         if (!cancelled) {
+          setReport(nextReport);
           router.push("/results");
         }
       }, 600);

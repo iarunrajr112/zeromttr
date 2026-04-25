@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { AnalysisReport, IncidentDraft } from "@/lib/types";
 
 type IncidentContextValue = {
@@ -85,30 +85,41 @@ export function IncidentProvider({ children }: { children: React.ReactNode }) {
     );
   }, [completedRunbookSteps, draft, report]);
 
+  const updateDraft = useCallback((patch: Partial<IncidentDraft>) => {
+    setDraft((current) => ({ ...current, ...patch }));
+  }, []);
+
+  const setReport = useCallback((nextReport: AnalysisReport | null) => {
+    setReportState(nextReport);
+    setCompletedRunbookSteps([]);
+  }, []);
+
+  const toggleRunbookStep = useCallback((step: number) => {
+    setCompletedRunbookSteps((current) =>
+      current.includes(step)
+        ? current.filter((value) => value !== step)
+        : [...current, step].sort((a, b) => a - b),
+    );
+  }, []);
+
+  const resetAll = useCallback(() => {
+    setDraft(defaultDraft);
+    setReportState(null);
+    setCompletedRunbookSteps([]);
+    window.sessionStorage.removeItem(STORAGE_KEY);
+  }, []);
+
   const value = useMemo<IncidentContextValue>(
     () => ({
       draft,
       report,
       completedRunbookSteps,
-      updateDraft: (patch) => setDraft((current) => ({ ...current, ...patch })),
-      setReport: (nextReport) => {
-        setReportState(nextReport);
-        setCompletedRunbookSteps([]);
-      },
-      toggleRunbookStep: (step) =>
-        setCompletedRunbookSteps((current) =>
-          current.includes(step)
-            ? current.filter((value) => value !== step)
-            : [...current, step].sort((a, b) => a - b),
-        ),
-      resetAll: () => {
-        setDraft(defaultDraft);
-        setReportState(null);
-        setCompletedRunbookSteps([]);
-        window.sessionStorage.removeItem(STORAGE_KEY);
-      },
+      updateDraft,
+      setReport,
+      toggleRunbookStep,
+      resetAll,
     }),
-    [completedRunbookSteps, draft, report],
+    [completedRunbookSteps, draft, report, resetAll, setReport, toggleRunbookStep, updateDraft],
   );
 
   return (
