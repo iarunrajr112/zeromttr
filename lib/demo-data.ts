@@ -1,5 +1,21 @@
 import type { AnalysisReport, Severity, TimelineEntry } from "@/lib/types";
 
+export const demoIncidentLog = `INCIDENT: INC-001
+TITLE: MySQL connection pool exhausted during Diwali sale
+SEVERITY: P1
+SUMMARY: Payment service MySQL connection pool reached max_connections limit of 512 during Diwali promotional campaign. Traffic spike of 6x baseline caused rapid connection pool saturation. SQLSTATE HY000 too many connections errors flooded logs. Circuit breaker opened on checkout-api. 1200 UPI transactions failed. Connection pool limit not scaled ahead of known traffic event.
+ROOT CAUSE: MySQL max_connections=512 exhausted during traffic spike. Not pre-scaled before campaign.
+FIX STEP 1: SET GLOBAL max_connections = 1024 on db-primary
+FIX STEP 2: kubectl rollout restart deployment/payment-service
+FIX STEP 3: SHOW STATUS LIKE Threads_connected
+FIX STEP 4: Monitor active_connections for 10 minutes
+FIX STEP 5: Add DB scaling to pre-campaign checklist
+SERVICES AFFECTED: payment-service, checkout-api, fraud-detection
+AFFECTED USERS: 1200
+RESOLVED IN: 28 minutes
+RESOLVED BY: Ravi Kumar SRE Lead
+TAGS: connection pool, max_connections, SQLSTATE HY000, traffic spike, UPI, circuit breaker, campaign`;
+
 export const demoLogs = `[2025-04-25 02:11:03] INFO checkout-api request_id=rzp_9f32 campaign=BLACK_FRIDAY_SALE msg="traffic spike detected" rps=518
 [2025-04-25 02:11:05] WARN payment-service request_id=pay_001 msg="mysql pool saturation approaching threshold" connections=94/100 latency=812ms
 [2025-04-25 02:11:08] ERROR checkout-api request_id=rzp_9f33 msg="UPI create payment failed with 503 from payment-service"

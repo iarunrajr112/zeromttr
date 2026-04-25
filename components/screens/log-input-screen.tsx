@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useIncidentState } from "@/components/incident-provider";
+import { demoIncidentLog } from "@/lib/demo-data";
 
 export function LogInputScreen() {
   const router = useRouter();
@@ -24,6 +25,30 @@ export function LogInputScreen() {
       </div>
 
       <form className="card page-card input-grid" onSubmit={handleSubmit}>
+        <div className="assist-row">
+          <div className="assist-copy">
+            <strong>Want to try the demo fast?</strong>
+            <span>
+              Load a ready-made PayZen incident and run the full ZeroMTTR flow in
+              one click.
+            </span>
+          </div>
+
+          <button
+            className="button-ghost"
+            onClick={() =>
+              updateDraft({
+                incidentId: "INC-001",
+                severity: "P1",
+                rawLogs: demoIncidentLog,
+              })
+            }
+            type="button"
+          >
+            Use Demo Log
+          </button>
+        </div>
+
         <div className="field">
           <label htmlFor="rawLogs">Production logs</label>
           <textarea
@@ -40,11 +65,11 @@ export function LogInputScreen() {
             <label htmlFor="incidentId">Incident ID</label>
             <input
               id="incidentId"
-              onChange={(event) =>
-                updateDraft({ incidentId: event.target.value.toUpperCase() })
-              }
-              value={draft.incidentId}
-            />
+            onChange={(event) =>
+              updateDraft({ incidentId: event.target.value.toUpperCase() })
+            }
+            value={draft.incidentId}
+          />
           </div>
 
           <div className="field">

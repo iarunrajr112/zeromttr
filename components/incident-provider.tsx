@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { demoLogs } from "@/lib/demo-data";
 import type { AnalysisReport, IncidentDraft } from "@/lib/types";
 
 type IncidentContextValue = {
@@ -19,7 +18,7 @@ const STORAGE_KEY = "zeromttr-state";
 const defaultDraft: IncidentDraft = {
   incidentId: "INC-LIVE-001",
   severity: "P1",
-  rawLogs: demoLogs,
+  rawLogs: "",
 };
 
 const IncidentContext = createContext<IncidentContextValue | null>(null);
