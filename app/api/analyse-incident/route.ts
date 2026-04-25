@@ -67,7 +67,7 @@ export async function POST(request: Request) {
         filter_variables: {},
         managed_agents: DEFAULT_MANAGED_AGENTS,
       }),
-      signal: AbortSignal.timeout(45000),
+      signal: AbortSignal.timeout(150000),
       cache: "no-store",
     });
 
